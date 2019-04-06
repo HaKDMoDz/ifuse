@@ -19,6 +19,32 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA 
  */
 
+
+/*
+Windows info
+
+Install DokanSetup_redist.exe (https://github.com/dokan-dev/dokany/releases/download/v1.1.0.2000/DokanSetup_redist.exe)
+
+Buildling:
+-MSYS2
+-Build/install libplist
+-Build/install libusbmuxd
+-Build/install libimobiledevice
+-Build dokany
+-Build ifuse:
+	export libfuse_CFLAGS="-I\"C:\msys64\home\your_folder\dokany-1.1.0.2000\dokan_fuse\include\" -D_FILE_OFFSET_BITS=64"
+	export libfuse_LIBS="/c/msys64/home/your_folder/dokany-1.1.0.2000/dokan_fuse/libdokanfuse1.dll"
+
+
+Running:
+-Need to install iTunes
+-Need to install Dokany
+-Run with same Fuse params as in readme for Linux
+
+
+*/
+
+
 #define FUSE_USE_VERSION  26
 
 #ifdef HAVE_CONFIG_H
@@ -214,7 +240,7 @@ static int get_afc_file_mode(afc_file_mode_t *afc_mode, int flags)
 	return 0;
 }
 
-static int ifuse_getattr(const char *path, struct stat *stbuf)
+static int ifuse_getattr(const char *path, struct FUSE_STAT *stbuf)
 {
 	int i;
 	int res = 0;
@@ -223,7 +249,7 @@ static int ifuse_getattr(const char *path, struct stat *stbuf)
 	afc_client_t afc = fuse_get_context()->private_data;
 	afc_error_t ret = afc_get_file_info(afc, path, &info);
 
-	memset(stbuf, 0, sizeof(struct stat));
+	memset(stbuf, 0, sizeof(struct FUSE_STAT));
 	if (ret != AFC_E_SUCCESS) {
 		int e = get_afc_error_as_errno(ret);
 		res = -e;
@@ -241,21 +267,21 @@ static int ifuse_getattr(const char *path, struct stat *stbuf)
 					stbuf->st_mode = S_IFREG;
 				} else if (!strcmp(info[i+1], "S_IFDIR")) {
 					stbuf->st_mode = S_IFDIR;
-				} else if (!strcmp(info[i+1], "S_IFLNK")) {
-					stbuf->st_mode = S_IFLNK;
+				// } else if (!strcmp(info[i+1], "S_IFLNK")) {
+				// 	stbuf->st_mode = S_IFLNK;
 				} else if (!strcmp(info[i+1], "S_IFBLK")) {
 					stbuf->st_mode = S_IFBLK;
 				} else if (!strcmp(info[i+1], "S_IFCHR")) {
 					stbuf->st_mode = S_IFCHR;
 				} else if (!strcmp(info[i+1], "S_IFIFO")) {
 					stbuf->st_mode = S_IFIFO;
-				} else if (!strcmp(info[i+1], "S_IFSOCK")) {
-					stbuf->st_mode = S_IFSOCK;
+				// } else if (!strcmp(info[i+1], "S_IFSOCK")) {
+				// 	stbuf->st_mode = S_IFSOCK;
 				}
 			} else if (!strcmp(info[i], "st_nlink")) {
 				stbuf->st_nlink = atoi(info[i+1]);
 			} else if (!strcmp(info[i], "st_mtime")) {
-				stbuf->st_mtime = (time_t)(atoll(info[i+1]) / 1000000000);
+				stbuf->st_mtim.tv_sec = (time_t)(atoll(info[i+1]) / 1000000000);
 			}
 #ifdef _DARWIN_FEATURE_64_BIT_INODE
 			else if (!strcmp(info[i], "st_birthtime")) { /* available on iOS 7+ */
@@ -268,15 +294,15 @@ static int ifuse_getattr(const char *path, struct stat *stbuf)
 		// set permission bits according to the file type
 		if (S_ISDIR(stbuf->st_mode)) {
 			stbuf->st_mode |= 0755;
-		} else if (S_ISLNK(stbuf->st_mode)) {
-			stbuf->st_mode |= 0777;
+		// } else if (S_ISLNK(stbuf->st_mode)) {
+		// 	stbuf->st_mode |= 0777;
 		} else {
 			stbuf->st_mode |= 0644;
 		}
 
 		// and set some additional info
-		stbuf->st_uid = getuid();
-		stbuf->st_gid = getgid();
+		stbuf->st_uid = 123;//getuid();
+		stbuf->st_gid = 456;//getgid();
 
 		stbuf->st_blksize = g_blocksize;
 	}
@@ -616,7 +642,7 @@ static struct fuse_operations ifuse_oper = {
 	.read = ifuse_read,
 	.write = ifuse_write,
 	.truncate = ifuse_truncate,
-	.ftruncate = ifuse_ftruncate,
+	// .ftruncate = ifuse_ftruncate,
 	.readlink = ifuse_readlink,
 	.symlink = ifuse_symlink,
 	.link = ifuse_link,
@@ -790,7 +816,7 @@ int main(int argc, char *argv[])
 {
 	int res = EXIT_FAILURE;
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
-	struct stat mst;
+	struct FUSE_STAT mst;
 	lockdownd_error_t ret = LOCKDOWN_E_SUCCESS;
 
 	memset(&opts, 0, sizeof(opts));
